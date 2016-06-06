@@ -1,0 +1,94 @@
+---
+title: "Reproducible research - Activity analysis"
+author: Susie X
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data input and preprocessing:   
+
+```{r input}
+Data=read.csv("activity.csv",header=T)
+dim(Data)
+Data$date=as.Date(Data$date)
+str(Data)
+length(unique(Data$interval))
+```
+
+## What is mean total number of steps taken per day?
+
+Total number of steps each day with incomplete cases removed:   
+
+```{r mean steps, echo=TRUE,message=FALSE}
+library(dplyr)
+Data_comp= Data[complete.cases(Data),] 
+SumData_comp = Data_comp %>% group_by(date) %>% summarize(daysumsteps=sum(steps))
+```
+
+Mean of sum steps each day with missing data removed:
+
+```{r m1,echo=TRUE}
+mean(SumData_comp$daysumsteps)
+```
+
+## What is the average daily activity pattern?
+
+```{r average, echo=TRUE,fig.width= 4, fig.height= 4}
+AverData_comp = Data_comp %>% group_by(interval) %>% summarize(aver = mean(steps))
+```
+
+Interval with highest average steps:
+
+```{r m2,echo=TRUE}
+AverData_comp$interval[which(AverData_comp$aver == max(AverData_comp$aver))]
+library(ggplot2)
+ggplot(AverData_comp, aes(interval, aver)) + geom_line() + xlab("Interval") + ylab("Mean steps") + ggtitle("Time series plot of average steps every day")
+```
+
+## Imputing missing values:
+
+Number of missing values in dataset:
+```{r missing, echo=TRUE,fig.width= 4, fig.height= 4}
+sum(is.na(Data$steps))
+```
+
+Use average steps in the interval to fill in missing data:
+
+```{r m3, echo=TRUE,message=FALSE}
+Datanew= Data
+for (i in 1: 17568) {
+if(is.na(Datanew[i,1])){
+      Datanew[i,1] = AverData_comp$aver[which(AverData_comp$interval==Datanew[i,3])]
+}
+}
+sum(is.na(Datanew$steps))
+SumData_new = Datanew %>% group_by(date) %>% summarize(daysumsteps=sum(steps))
+qplot(daysumsteps,data=SumData_new,geom="histogram")+ geom_histogram(aes(fill = ..count..))+xlab("Sum steps each day")+ggtitle("Histogram of sum steps each day")
+```
+
+Mean and median of sum steps each day:
+
+```{r m5, echo=TRUE}
+mean(SumData_new$daysumsteps)
+median(SumData_new$daysumsteps)
+```
+
+It does not affect the mean because the result in first step is from dataset with missing value removed and in this step, the missing value was filled by mean steps of the same interval. 
+
+## Are there differences in activity patterns between weekdays and weekends?
+
+```{r week, echo=TRUE, message = FALSE,fig.width= 4, fig.height= 4}
+Datanew = Datanew %>% mutate(day = weekdays(date)) %>% mutate(wd = ifelse(day %in% c("Monday","Tuesday","Wednesday","Thursday","Friday"), "weekday","weekend"))
+
+library(data.table)
+New = data.table(Datanew)
+New[,mean := mean(steps),by=list(wd,interval)]
+
+ggplot(New, aes(interval, mean)) + geom_line() + facet_wrap(~wd,ncol=1) + xlab("Interval") + ylab("Mean steps") + ggtitle("Weekday VS weekend activity")
+```
+
+Both weekdays and weekend have peak activity around interval near 800, but there are more activities after the peak in weekends. Also there are slightly more activities before the peak in weekdays. 
+
